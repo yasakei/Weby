@@ -1,0 +1,236 @@
+/* style.css */
+:root {
+    --primary-color: #0d6efd;
+    --primary-hover: #0b5ed7;
+    --background-color: #f8f9fa;
+    --editor-bg: #ffffff;
+    --text-color: #212529;
+    --border-color: #dee2e6;
+    --header-height: 60px;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+header {
+    height: var(--header-height);
+    background-color: var(--editor-bg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 2rem;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+}
+
+header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.actions button {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-left: 0.5rem;
+}
+
+.actions button:hover {
+    background-color: #e9ecef;
+}
+
+.actions button.primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+}
+
+.actions button.primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.container {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.editor,
+.preview {
+    flex: 1;
+    height: calc(100vh - var(--header-height));
+    overflow-y: auto;
+    position: relative;
+}
+
+.CodeMirror {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    font-family: 'Fira Code', 'Courier New', Courier, monospace;
+    font-size: 16px;
+    line-height: 1.7;
+}
+
+.preview {
+    border-left: 1px solid var(--border-color);
+}
+
+#html-output {
+    padding: 2rem;
+    background-color: var(--editor-bg);
+}
+
+#html-output h1,
+#html-output h2,
+#html-output h3 {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.3em;
+}
+
+#html-output blockquote {
+    border-left: 5px solid var(--border-color);
+    padding-left: 1em;
+    color: #6c757d;
+    margin-left: 0;
+}
+
+#html-output table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5em 0;
+    font-size: 0.95em;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color);
+}
+
+#html-output th,
+#html-output td {
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.8rem 1rem;
+    text-align: left;
+}
+
+#html-output th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+#html-output tr:nth-of-type(even) {
+    background-color: #fcfcfd;
+}
+
+#html-output tr:last-child td {
+    border-bottom: none;
+}
+
+/* --- GitHub-Style Admonitions --- */
+.admonition {
+    padding: 1rem 1.5rem;
+    margin: 1.5em 0;
+    border-left: 5px solid #0969da;
+    border-radius: 6px;
+    background-color: #f6f8fa;
+    color: var(--text-color);
+}
+
+.admonition p {
+    margin: 0.5em 0;
+}
+
+.admonition p:first-child {
+    font-weight: 700;
+    margin-top: 0;
+}
+
+.admonition p:last-child {
+    margin-bottom: 0;
+}
+
+.admonition-note {
+    border-color: #0d6efd;
+    background-color: #cfe2ff;
+}
+
+.admonition-tip {
+    border-color: #198754;
+    background-color: #d1e7dd;
+}
+
+.admonition-important {
+    border-color: #6f42c1;
+    background-color: #e2d9f3;
+}
+
+.admonition-warning {
+    border-color: #ffc107;
+    background-color: #fff3cd;
+}
+
+.admonition-caution {
+    border-color: #dc3545;
+    background-color: #f8d7da;
+}
+
+
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+
+    .preview {
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+    }
+
+    header {
+        flex-direction: column;
+        height: auto;
+        padding: 1rem;
+    }
+
+    header h1 {
+        margin-bottom: 1rem;
+    }
+}
+
+/* --- Highlight.js Customizations --- */
+pre {
+    background-color: #282c34; /* Default Atom One Dark background */
+    padding: 1.5em;
+    border-radius: 8px;
+    font-family: 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-x: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+code {
+    font-family: 'Fira Code', monospace;
+}
+
+/* Inline code */
+:not(pre) > code {
+    background-color: #e9ecef;
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+}

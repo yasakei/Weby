@@ -156,16 +156,103 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- HELPER FUNCTIONS (COMPLETE AND UNABRIDGED) ---
-    const copyHtml = () => {
-        navigator.clipboard.writeText(htmlOutput.innerHTML).then(() => {
+    const copyHtml = async () => {
+        try {
+            // Map external CSS to hosted versions using full URLs - including localhost/development URLs
+            const hostedCssMap = {
+                'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Fira+Code&display=swap': 'https://yasakei.is-a.dev/Weby/libs/fonts.css',
+                'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css': 'https://yasakei.is-a.dev/Weby/libs/highlight.css',
+                'https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css': 'https://yasakei.is-a.dev/Weby/libs/codemirror.css',
+                'https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css': 'https://yasakei.is-a.dev/Weby/libs/codemirror-theme.css',
+                './style.css': 'https://yasakei.is-a.dev/Weby/libs/style.css',
+                'style.css': 'https://yasakei.is-a.dev/Weby/libs/style.css'
+            };
+            
+            // Create CSS link tags for hosted files
+            const cssLinks = [];
+            const linkElements = document.querySelectorAll('link[rel="stylesheet"]');
+            
+            linkElements.forEach(link => {
+                const href = link.getAttribute('href');
+                let hostedUrl = null;
+                
+                // Check direct mapping first
+                hostedUrl = hostedCssMap[link.href] || hostedCssMap[href];
+                
+                // Handle localhost and development server URLs
+                if (!hostedUrl && href) {
+                    if (href.includes('style.css') || href.endsWith('style.css')) {
+                        hostedUrl = 'https://yasakei.is-a.dev/Weby/libs/style.css';
+                    } else if (href.includes('fonts.googleapis.com')) {
+                        hostedUrl = 'https://yasakei.is-a.dev/Weby/libs/fonts.css';
+                    } else if (href.includes('highlight.js') || href.includes('atom-one-dark')) {
+                        hostedUrl = 'https://yasakei.is-a.dev/Weby/libs/highlight.css';
+                    } else if (href.includes('codemirror') && href.includes('material-darker')) {
+                        hostedUrl = 'https://yasakei.is-a.dev/Weby/libs/codemirror-theme.css';
+                    } else if (href.includes('codemirror') && !href.includes('theme')) {
+                        hostedUrl = 'https://yasakei.is-a.dev/Weby/libs/codemirror.css';
+                    }
+                }
+                
+                if (hostedUrl) {
+                    cssLinks.push(`    <link rel="stylesheet" href="${hostedUrl}">`);
+                } else {
+                    // Fallback to original URL only if it's not a localhost URL
+                    if (!href.includes('127.0.0.1') && !href.includes('localhost')) {
+                        cssLinks.push(`    <link rel="stylesheet" href="${link.href}">`);
+                    }
+                }
+            });
+            
+            // Ensure main style.css is included
+            if (!cssLinks.some(link => link.includes('style.css'))) {
+                cssLinks.push(`    <link rel="stylesheet" href="https://yasakei.is-a.dev/Weby/libs/style.css">`);
+            }
+            
+            // Get only essential custom styles (user @style blocks and preview background)
+            const customStyles = customStyleTag.innerHTML;
+            const previewStyles = htmlOutput.style.backgroundColor ? 
+                `#html-output { background-color: ${htmlOutput.style.backgroundColor}; }` : '';
+            
+            const inlineStyles = [customStyles, previewStyles].filter(s => s.trim()).join('\n');
+            
+            // Create complete HTML document with hosted CSS references and JavaScript for syntax highlighting
+            const completeHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weby Document</title>
+${cssLinks.join('\n')}${inlineStyles ? `
+    <style>
+${inlineStyles}
+    </style>` : ''}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+    <div id="html-output">
+${htmlOutput.innerHTML}
+    </div>
+    <script>
+        // Initialize syntax highlighting
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        });
+    </script>
+</body>
+</html>`;
+
+            await navigator.clipboard.writeText(completeHtml);
             copyHtmlBtn.textContent = 'Copied!';
             setTimeout(() => {
                 copyHtmlBtn.textContent = 'Copy HTML';
             }, 2000);
-        }).catch(err => {
+        } catch (err) {
             console.error('Failed to copy HTML: ', err);
-            alert('Could not copy HTML.');
-        });
+            alert('Could not copy HTML with styles.');
+        }
     };
 
     const downloadPDF = async () => {

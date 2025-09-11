@@ -259,78 +259,42 @@ ${htmlOutput.innerHTML}
         downloadPdfBtn.textContent = 'Generating...';
         downloadPdfBtn.disabled = true;
 
-        const contentToRender = htmlOutput.cloneNode(true);
-        contentToRender.style.position = 'absolute';
-        contentToRender.style.left = '-9999px';
-        contentToRender.style.width = `${htmlOutput.offsetWidth}px`;
-        document.body.appendChild(contentToRender);
-
-        const images = Array.from(contentToRender.querySelectorAll('img'));
-
-        const waitForImageLoad = (img) => {
-            return new Promise((resolve, reject) => {
-                if (img.complete) return resolve();
-                img.onload = () => resolve();
-                img.onerror = () => reject(new Error('Image failed to load'));
-            });
-        };
-
-        const toDataURL = async (url) => {
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-            try {
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
-                const blob = await response.blob();
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-            } catch (error) {
-                console.warn(`Could not convert image ${url} to data URL.`, error);
-                return url;
-            }
-        };
-
-        const imageLoadPromises = images.map(async (img) => {
-            if (img.src && !img.src.startsWith('data:')) {
-                const dataUrl = await toDataURL(img.src);
-                img.src = dataUrl;
-                try {
-                    await waitForImageLoad(img);
-                } catch (error) {
-                    console.error(error);
-                }
-            }
-        });
-
         try {
-            await Promise.all(imageLoadPromises);
-
-            Array.from(contentToRender.querySelectorAll('img[style*="float"]')).forEach(img => {
-                img.style.float = 'none';
-                img.style.display = 'block';
-                img.style.margin = '1em auto';
-            });
-
-            const canvas = await html2canvas(contentToRender, {
-                scale: 2,
-                logging: false,
-                backgroundColor: htmlOutput.style.backgroundColor,
-            });
             const pdf = new jsPDF({
                 orientation: 'portrait',
                 unit: 'px',
-                format: [canvas.width, canvas.height]
+                format: 'a4'
             });
-            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
-            pdf.save('weby-document.pdf');
+
+            const content = document.createElement('div');
+            const style = document.createElement('style');
+
+            const css = await (async () => {
+                const styleSheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
+                const cssPromises = styleSheets.map(sheet => fetch(sheet.href).then(response => response.text()));
+                return (await Promise.all(cssPromises)).join('\n');
+            })();
+
+            style.textContent = css + document.getElementById('custom-user-styles').innerHTML;
+            content.appendChild(style);
+
+            const htmlContent = document.getElementById('html-output').cloneNode(true);
+            content.appendChild(htmlContent);
+
+            await pdf.html(content, {
+                callback: function (pdf) {
+                    pdf.save('weby-document.pdf');
+                },
+                margin: [15, 15, 15, 15],
+                autoPaging: 'text',
+                width: htmlOutput.offsetWidth,
+                windowWidth: htmlOutput.offsetWidth
+            });
+
         } catch (error) {
             console.error('PDF Generation failed:', error);
             alert('An error occurred during PDF generation. Check the console for more details.');
         } finally {
-            document.body.removeChild(contentToRender);
             downloadPdfBtn.textContent = 'Download PDF';
             downloadPdfBtn.disabled = false;
         }

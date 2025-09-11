@@ -260,35 +260,230 @@ ${htmlOutput.innerHTML}
         downloadPdfBtn.disabled = true;
 
         try {
+            // Create a more appropriate container for PDF generation
+            const pdfContainer = document.createElement('div');
+            pdfContainer.style.width = '210mm'; // A4 width
+            pdfContainer.style.padding = '20mm'; // Standard margins
+            pdfContainer.style.boxSizing = 'border-box';
+            pdfContainer.style.backgroundColor = 'white';
+            
+            // Clone and modify the HTML content for PDF
+            const htmlContent = document.getElementById('html-output').cloneNode(true);
+            htmlContent.style.padding = '0'; // Remove extra padding for PDF
+            htmlContent.style.backgroundColor = 'white';
+            
+            // Fix code blocks for PDF
+            htmlContent.querySelectorAll('pre code').forEach(block => {
+                // Ensure code blocks don't overflow
+                block.style.whiteSpace = 'pre-wrap';
+                block.style.wordWrap = 'break-word';
+                block.style.overflowWrap = 'break-word';
+            });
+            
+            // Create a style element with essential CSS for PDF
+            const style = document.createElement('style');
+            style.textContent = `
+                body {
+                    font-family: 'Inter', sans-serif;
+                    font-size: 11pt;
+                    line-height: 1.6;
+                    color: #212529;
+                    margin: 0;
+                    padding: 0;
+                }
+                
+                h1, h2, h3, h4, h5, h6 {
+                    margin-top: 0;
+                    margin-bottom: 0.5em;
+                    font-weight: 700;
+                }
+                
+                h1 {
+                    font-size: 24pt;
+                    border-bottom: 1px solid #eee;
+                    padding-bottom: 0.3em;
+                }
+                
+                h2 {
+                    font-size: 20pt;
+                    border-bottom: 1px solid #eee;
+                    padding-bottom: 0.3em;
+                }
+                
+                h3 {
+                    font-size: 16pt;
+                }
+                
+                h4 {
+                    font-size: 14pt;
+                }
+                
+                p {
+                    margin-top: 0;
+                    margin-bottom: 1em;
+                    text-align: justify;
+                }
+                
+                blockquote {
+                    margin: 0 0 1em 0;
+                    padding: 0.5em 1em;
+                    border-left: 5px solid #dee2e6;
+                    color: #6c757d;
+                }
+                
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 1em 0;
+                    font-size: 10pt;
+                }
+                
+                th, td {
+                    border: 1px solid #dee2e6;
+                    padding: 0.5em;
+                    text-align: left;
+                }
+                
+                th {
+                    background-color: #f8f9fa;
+                    font-weight: 600;
+                }
+                
+                tr:nth-of-type(even) {
+                    background-color: #fcfcfd;
+                }
+                
+                pre {
+                    background-color: #282c34;
+                    padding: 1em;
+                    border-radius: 4px;
+                    font-family: 'Fira Code', monospace;
+                    font-size: 8pt;
+                    line-height: 1.4;
+                    margin: 1em 0;
+                    color: #abb2bf;
+                    white-space: pre-wrap;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                    max-width: 100%;
+                }
+                
+                code {
+                    font-family: 'Fira Code', monospace;
+                }
+                
+                :not(pre) > code {
+                    background-color: #e9ecef;
+                    padding: 0.2em 0.4em;
+                    border-radius: 3px;
+                    font-size: 9pt;
+                }
+                
+                img {
+                    max-width: 100%;
+                    height: auto;
+                    display: block;
+                    margin: 1em 0;
+                }
+                
+                ul, ol {
+                    margin-top: 0;
+                    margin-bottom: 1em;
+                    padding-left: 2em;
+                }
+                
+                li {
+                    margin-bottom: 0.25em;
+                }
+                
+                /* Admonitions */
+                .admonition {
+                    padding: 1em;
+                    margin: 1em 0;
+                    border-left: 5px solid #0969da;
+                    border-radius: 4px;
+                    background-color: #f6f8fa;
+                }
+                
+                .admonition-note {
+                    border-color: #0d6efd;
+                    background-color: #cfe2ff;
+                }
+                
+                .admonition-tip {
+                    border-color: #198754;
+                    background-color: #d1e7dd;
+                }
+                
+                .admonition-important {
+                    border-color: #6f42c1;
+                    background-color: #e2d9f3;
+                }
+                
+                .admonition-warning {
+                    border-color: #ffc107;
+                    background-color: #fff3cd;
+                }
+                
+                .admonition-caution {
+                    border-color: #dc3545;
+                    background-color: #f8d7da;
+                }
+                
+                .admonition p:first-child {
+                    font-weight: 700;
+                    margin-top: 0;
+                }
+                
+                .admonition p:last-child {
+                    margin-bottom: 0;
+                }
+                
+                /* Ensure proper page breaks */
+                h1, h2, h3, h4 {
+                    page-break-after: avoid;
+                }
+                
+                pre, table {
+                    page-break-inside: avoid;
+                }
+            `;
+            
+            pdfContainer.appendChild(style);
+            pdfContainer.appendChild(htmlContent);
+            
+            // Create a new jsPDF instance with better settings for text
             const pdf = new jsPDF({
                 orientation: 'portrait',
-                unit: 'px',
+                unit: 'mm',
                 format: 'a4'
             });
-
-            const content = document.createElement('div');
-            const style = document.createElement('style');
-
-            const css = await (async () => {
-                const styleSheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
-                const cssPromises = styleSheets.map(sheet => fetch(sheet.href).then(response => response.text()));
-                return (await Promise.all(cssPromises)).join('\n');
-            })();
-
-            style.textContent = css + document.getElementById('custom-user-styles').innerHTML;
-            content.appendChild(style);
-
-            const htmlContent = document.getElementById('html-output').cloneNode(true);
-            content.appendChild(htmlContent);
-
-            await pdf.html(content, {
+            
+            // Add the HTML content to the PDF
+            await pdf.html(pdfContainer, {
                 callback: function (pdf) {
                     pdf.save('weby-document.pdf');
                 },
-                margin: [15, 15, 15, 15],
+                margin: [20, 15, 20, 15], // Top, Right, Bottom, Left margins in mm
                 autoPaging: 'text',
-                width: htmlOutput.offsetWidth,
-                windowWidth: htmlOutput.offsetWidth
+                width: 170, // 210mm (A4 width) - 15mm (left margin) - 15mm (right margin)
+                windowWidth: 794, // Approximate pixel width of A4 at 96 DPI
+                x: 0,
+                y: 0,
+                fontFaces: [
+                    {
+                        family: 'Inter',
+                        src: [
+                            { url: 'https://fonts.gstatic.com/s/inter/v12/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa2JL7W0Q5n-wU.woff2', format: 'woff2' }
+                        ]
+                    },
+                    {
+                        family: 'Fira Code',
+                        src: [
+                            { url: 'https://fonts.gstatic.com/s/firacode/v21/uU9eCBsR6Z2vfE9aq3bL0fxyUs4tcw4W_D1sJVD7Ng.woff2', format: 'woff2' }
+                        ]
+                    }
+                ]
             });
 
         } catch (error) {

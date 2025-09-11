@@ -1,0 +1,28 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+export interface VariableDefinition {
+    type: 'string';
+    description: string;
+    default?: string;
+    required?: boolean;
+}
+export interface VariableSchema {
+    [key: string]: VariableDefinition;
+}
+export declare const VARIABLE_SCHEMA: {
+    readonly extensionPath: {
+        readonly type: "string";
+        readonly description: "The path of the extension in the filesystem.";
+    };
+    readonly '/': {
+        readonly type: "string";
+        readonly description: "The path separator.";
+    };
+    readonly pathSeparator: {
+        readonly type: "string";
+        readonly description: "The path separator.";
+    };
+};

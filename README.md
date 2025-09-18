@@ -1,17 +1,28 @@
 # Weby - A Real-Time Markdown Editor
 
-Weby is a lightweight, in-browser Markdown editor that provides a real-time preview of your rendered document. It's built with HTML, CSS, and vanilla JavaScript, and it supports a variety of features to make writing and styling your documents easy and efficient.
+Weby is a lightweight, high-performance, in-browser Markdown editor that provides a real-time preview of your rendered document. Built with optimized HTML, CSS, and vanilla JavaScript for maximum speed and efficiency.
+
+## ⚡ Performance Features
+
+- **Debounced Rendering**: 100ms debounce prevents excessive re-renders during typing
+- **Smart Change Detection**: Only re-renders when content actually changes
+- **Optimized PDF Generation**: Streamlined HTML-to-PDF conversion with memory cleanup
+- **Fallback System**: Works even when external dependencies fail to load
+- **RequestAnimationFrame**: Syntax highlighting uses RAF for smooth performance
+- **Memory Management**: Automatic cleanup of temporary DOM elements
 
 ## Features
 
-- **Live Preview**: See your rendered Markdown instantly as you type.
-- **GitHub Flavored Markdown**: Standard Markdown syntax, including tables, is supported.
-- **Code Syntax Highlighting**: Code blocks are automatically highlighted using `highlight.js`.
-- **Custom Styling**: Use an `@style` block at the top of your document to customize the preview pane's background color and the border-radius of code blocks and images.
-- **Advanced Image Formatting**: Align images to the left or right and set their width directly in the Markdown image tag.
-- **GitHub-Style Admonitions**: Add `[!NOTE]`, `[!TIP]`, `[!WARNING]`, and other admonitions to create styled callout boxes.
-- **Copy to Clipboard**: Easily copy the generated HTML to your clipboard.
-- **Download as PDF**: Export your rendered document as a PDF.
+- **⚡ High Performance**: Optimized rendering pipeline with debouncing and smart change detection
+- **📝 Live Preview**: See your rendered Markdown instantly as you type
+- **📄 Fast PDF Export**: Optimized PDF generation with memory management
+- **🎨 GitHub Flavored Markdown**: Standard Markdown syntax, including tables, is supported
+- **🌈 Code Syntax Highlighting**: Code blocks are automatically highlighted using `highlight.js`
+- **🎯 Custom Styling**: Use an `@style` block at the top of your document to customize the preview pane's background color and the border-radius of code blocks and images
+- **🖼️ Advanced Image Formatting**: Align images to the left or right and set their width directly in the Markdown image tag
+- **📋 GitHub-Style Admonitions**: Add `[!NOTE]`, `[!TIP]`, `[!WARNING]`, and other admonitions to create styled callout boxes
+- **📋 Copy to Clipboard**: Easily copy the generated HTML to your clipboard
+- **🔄 Fallback System**: Works reliably even when external CDN resources are unavailable
 
 ## How to Use
 

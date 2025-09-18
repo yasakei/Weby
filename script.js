@@ -1,8 +1,31 @@
 // script.js
 
-const { jsPDF } = window.jspdf;
+// Fallback for missing jsPDF
+const { jsPDF } = window.jspdf || {};
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Check for essential dependencies and provide fallbacks
+    const checkDependencies = () => {
+        const missing = [];
+        if (typeof CodeMirror === 'undefined') missing.push('CodeMirror');
+        if (typeof showdown === 'undefined') missing.push('Showdown');
+        if (typeof hljs === 'undefined') missing.push('Highlight.js');
+        if (!jsPDF) missing.push('jsPDF');
+        
+        if (missing.length > 0) {
+            console.warn('Missing dependencies:', missing.join(', '));
+            // Disable PDF functionality if jsPDF is missing
+            if (!jsPDF) {
+                const pdfBtn = document.getElementById('download-pdf-btn');
+                if (pdfBtn) {
+                    pdfBtn.disabled = true;
+                    pdfBtn.textContent = 'PDF Unavailable';
+                }
+            }
+        }
+    };
+    
+    checkDependencies();
     // --- DOM ELEMENT SELECTION ---
     const editorContainer = document.getElementById('editor-container');
     const htmlOutput = document.getElementById('html-output');
@@ -10,50 +33,138 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyHtmlBtn = document.getElementById('copy-html-btn');
     const customStyleTag = document.getElementById('custom-user-styles');
 
-    // --- DEFINE CUSTOM MARKDOWN MODE FOR CODEMIRROR ---
-    CodeMirror.defineMode("custom-markdown", function(config, parserConfig) {
-        const markdownMode = CodeMirror.getMode(config, "markdown");
-        const overlay = {
-            token: function(stream) {
-                // Highlight @style blocks
-                if (stream.match(/^@style/)) {
-                    stream.skipToEnd();
-                    return "meta";
+    // --- DEFINE CUSTOM MARKDOWN MODE FOR CODEMIRROR (WITH FALLBACK) ---
+    if (typeof CodeMirror !== 'undefined') {
+        CodeMirror.defineMode("custom-markdown", function(config, parserConfig) {
+            const markdownMode = CodeMirror.getMode(config, "markdown");
+            const overlay = {
+                token: function(stream) {
+                    // Highlight @style blocks
+                    if (stream.match(/^@style/)) {
+                        stream.skipToEnd();
+                        return "meta";
+                    }
+                    if (stream.match(/^@endstyle/)) {
+                        stream.skipToEnd();
+                        return "meta";
+                    }
+                    // Highlight admonition syntax
+                    if (stream.match(/^> \[!/)) {
+                        stream.eatWhile(/[^]]/);
+                        stream.eat("]");
+                        return "keyword";
+                    }
+                    while (stream.next() != null && !stream.match(/^@style/, false) && !stream.match(/^@endstyle/, false) && !stream.match(/^> \[!/, false)) {}
+                    return null;
                 }
-                if (stream.match(/^@endstyle/)) {
-                    stream.skipToEnd();
-                    return "meta";
+            };
+            return CodeMirror.overlayMode(markdownMode, overlay);
+        });
+    }
+
+    // --- INITIALIZE CODEMIRROR EDITOR (WITH FALLBACK) ---
+    let editor;
+    if (typeof CodeMirror !== 'undefined') {
+        editor = CodeMirror(editorContainer, {
+            mode: "custom-markdown",
+            theme: "material-darker",
+            lineNumbers: true,
+            lineWrapping: true,
+        });
+    } else {
+        // Fallback to textarea with enhanced styling
+        const textarea = document.createElement('textarea');
+        textarea.id = 'fallback-editor';
+        textarea.style.cssText = `
+            width: 100%; 
+            height: 100%; 
+            border: none; 
+            padding: 1rem; 
+            font-family: 'Fira Code', monospace; 
+            font-size: 14px;
+            line-height: 1.7;
+            background-color: #263238;
+            color: #eeffff;
+            resize: none;
+            outline: none;
+        `;
+        textarea.placeholder = 'Start typing your markdown here...';
+        editorContainer.appendChild(textarea);
+        
+        editor = {
+            getValue: () => textarea.value,
+            setValue: (value) => textarea.value = value,
+            on: (event, callback) => {
+                if (event === 'change') {
+                    textarea.addEventListener('input', callback);
                 }
-                // Highlight admonition syntax
-                if (stream.match(/^> \[!/)) {
-                    stream.eatWhile(/[^]]/);
-                    stream.eat("]");
-                    return "keyword";
-                }
-                while (stream.next() != null && !stream.match(/^@style/, false) && !stream.match(/^@endstyle/, false) && !stream.match(/^> \[!/, false)) {}
-                return null;
             }
         };
-        return CodeMirror.overlayMode(markdownMode, overlay);
-    });
+    }
 
-    // --- INITIALIZE CODEMIRROR EDITOR ---
-    const editor = CodeMirror(editorContainer, {
-        mode: "custom-markdown",
-        theme: "material-darker",
-        lineNumbers: true,
-        lineWrapping: true,
-    });
+    // --- INITIALIZE SHOWDOWN CONVERTER (WITH FALLBACK) ---
+    let converter;
+    if (typeof showdown !== 'undefined') {
+        converter = new showdown.Converter();
+        converter.setOption('tables', true);
+        converter.setOption('strikethrough', true);
+        converter.setOption('parseImgDimensions', true);
+    } else {
+        // Enhanced markdown fallback
+        converter = {
+            makeHtml: (text) => {
+                return text
+                    // Headers
+                    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                    // Bold and italic
+                    .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+                    // Code blocks
+                    .replace(/```(\w+)?\n([\s\S]*?)```/gim, '<pre><code class="language-$1">$2</code></pre>')
+                    .replace(/`([^`]+)`/gim, '<code>$1</code>')
+                    // Links
+                    .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2">$1</a>')
+                    // Line breaks and paragraphs
+                    .replace(/\n\n/gim, '</p><p>')
+                    .replace(/^(?!<h|<pre|<\/p>|$)/gim, '<p>')
+                    .replace(/(?!<\/h\d>|<\/pre>|<\/p>)$/gim, '</p>')
+                    // Clean up empty paragraphs
+                    .replace(/<p><\/p>/gim, '');
+            }
+        };
+    }
 
-    // --- INITIALIZE SHOWDOWN CONVERTER ---
-    const converter = new showdown.Converter();
-    converter.setOption('tables', true);
-    converter.setOption('strikethrough', true);
-    converter.setOption('parseImgDimensions', true);
-
-    // --- CORE RENDERING PIPELINE ---
+    // --- PERFORMANCE OPTIMIZATIONS ---
+    let renderTimeout;
+    let lastRenderedContent = '';
+    let tempElements = new Set(); // Track temporary elements for cleanup
+    
+    // Debounced rendering to improve performance
+    const debouncedRender = () => {
+        clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(renderContent, 100); // 100ms debounce
+    };
+    
+    // Memory cleanup utility
+    const cleanupTempElements = () => {
+        tempElements.forEach(element => {
+            if (element.parentNode) {
+                element.parentNode.removeChild(element);
+            }
+        });
+        tempElements.clear();
+    };
+    
+    // --- CORE RENDERING PIPELINE (OPTIMIZED) ---
     const renderContent = () => {
+        const renderStart = performance.now();
         const rawText = editor.getValue();
+        
+        // Skip rendering if content hasn't changed
+        if (rawText === lastRenderedContent) return;
+        lastRenderedContent = rawText;
 
         // --- Step 1: Pre-process Raw Text into Pure Markdown ---
         const convertToPureMarkdown = (text) => {
@@ -61,162 +172,129 @@ document.addEventListener('DOMContentLoaded', () => {
             return processedText.replace(/@style\s*([\s\S]*?)\s*@endstyle/, '');
         };
         
-        // --- Step 2: Apply Custom CSS from @style block ---
+        // --- Step 2: Apply Custom CSS from @style block (optimized) ---
         const applyCustomStyles = (text) => {
             const match = text.match(/@style\s*([\s\S]*?)\s*@endstyle/);
-            let css = '';
-            let codeRadius = '8px', imageRadius = '12px';
-            htmlOutput.style.backgroundColor = '#ffffff';
-
-            if (match) {
-                const styleContent = match[1];
-                const bgMatch = styleContent.match(/@background:\s*(.*?);/);
-                const codeRadiusMatch = styleContent.match(/@code-radius:\s*(.*?);/);
-                const imageRadiusMatch = styleContent.match(/@image-radius:\s*(.*?);/);
-
-                if (bgMatch) htmlOutput.style.backgroundColor = bgMatch[1].trim();
-                if (codeRadiusMatch) codeRadius = codeRadiusMatch[1].trim();
-                if (imageRadiusMatch) imageRadius = imageRadiusMatch[1].trim();
+            if (!match) {
+                // Reset to defaults if no custom styles
+                htmlOutput.style.backgroundColor = '#ffffff';
+                customStyleTag.innerHTML = `
+                    #html-output pre { border-radius: 8px; overflow: hidden; }
+                    #html-output img { border-radius: 12px; max-width: 100%; height: auto; display: block; margin: 1em auto; }
+                `;
+                return;
             }
-            css += `#html-output pre { border-radius: ${codeRadius}; overflow: hidden; }\n`;
-            css += `#html-output img { border-radius: ${imageRadius}; max-width: 100%; height: auto; display: block; margin: 1em auto; }\n`;
-            customStyleTag.innerHTML = css;
-        };
 
-        // --- Step 3: Post-process for GitHub-style admonitions ---
-        const processAdmonitions = (html) => {
-            const container = document.createElement('div');
-            container.innerHTML = html;
-            const admonitionTypes = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'];
+            const styleContent = match[1];
+            const bgMatch = styleContent.match(/@background:\s*(.*?);/);
+            const codeRadiusMatch = styleContent.match(/@code-radius:\s*(.*?);/);
+            const imageRadiusMatch = styleContent.match(/@image-radius:\s*(.*?);/);
+
+            // Apply background
+            htmlOutput.style.backgroundColor = bgMatch ? bgMatch[1].trim() : '#ffffff';
             
-            container.querySelectorAll('blockquote').forEach(quote => {
-                const firstP = quote.querySelector('p:first-child');
-                if (!firstP) return;
+            // Build CSS efficiently
+            const codeRadius = codeRadiusMatch ? codeRadiusMatch[1].trim() : '8px';
+            const imageRadius = imageRadiusMatch ? imageRadiusMatch[1].trim() : '12px';
+            
+            customStyleTag.innerHTML = `
+                #html-output pre { border-radius: ${codeRadius}; overflow: hidden; }
+                #html-output img { border-radius: ${imageRadius}; max-width: 100%; height: auto; display: block; margin: 1em auto; }
+            `;
+        };
 
-                const match = firstP.innerHTML.match(/\[!(\w+)\]/);
-                if (match && admonitionTypes.includes(match[1].toUpperCase())) {
-                    const type = match[1].toUpperCase();
+        // --- Step 3: Post-process for GitHub-style admonitions (optimized) ---
+        const processAdmonitions = (html) => {
+            const admonitionTypes = new Set(['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION']);
+            
+            return html.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/g, (match, content) => {
+                const firstPMatch = content.match(/<p[^>]*>\[!(\w+)\]([\s\S]*?)<\/p>/);
+                
+                if (firstPMatch && admonitionTypes.has(firstPMatch[1].toUpperCase())) {
+                    const type = firstPMatch[1].toUpperCase();
                     const title = type.charAt(0) + type.slice(1).toLowerCase();
+                    const remainingContent = firstPMatch[2] + content.substring(firstPMatch[0].length);
                     
-                    const admonitionDiv = document.createElement('div');
-                    admonitionDiv.className = `admonition admonition-${title.toLowerCase()}`;
-                    
-                    const titleP = document.createElement('p');
-                    titleP.innerHTML = `<strong>${title}</strong>`;
-                    admonitionDiv.appendChild(titleP);
-                    
-                    firstP.innerHTML = firstP.innerHTML.replace(/\[!\w+\]\s*/, '');
-                    
-                    if (firstP.innerHTML.trim() !== '') {
-                        admonitionDiv.appendChild(firstP);
-                    }
-                    
-                    let currentElement = firstP.nextElementSibling;
-                    while (currentElement) {
-                        admonitionDiv.appendChild(currentElement);
-                        currentElement = firstP.nextElementSibling;
-                    }
-                    
-                    quote.parentNode.replaceChild(admonitionDiv, quote);
+                    return `<div class="admonition admonition-${title.toLowerCase()}">
+                        <p><strong>${title}</strong></p>
+                        ${remainingContent ? `<p>${remainingContent}</p>` : ''}
+                    </div>`;
                 }
+                return match;
             });
-            return container.innerHTML;
         };
 
-        // --- Step 4: Post-process for advanced image attributes ---
+        // --- Step 4: Post-process for advanced image attributes (optimized) ---
         const postprocessHtml = (html) => {
-            const container = document.createElement('div');
-            container.innerHTML = html;
-            container.querySelectorAll('img').forEach(img => {
-                const alt = img.getAttribute('alt') || '';
+            return html.replace(/<img([^>]*)alt="([^"]*)"([^>]*)>/g, (match, before, alt, after) => {
                 const attrMatch = alt.match(/{(.*?)}/);
-                if (attrMatch) {
-                    img.setAttribute('alt', alt.replace(attrMatch[0], '').trim());
-                    attrMatch[1].split(' ').forEach(attr => {
-                        const [key, value] = attr.split('=');
-                        if (key === 'width') img.style.width = value;
-                        if (key === 'align') {
-                            img.style.float = value;
-                            img.style.margin = value === 'left' ? '0.5em 1.5em 0.5em 0' : '0.5em 0 0.5em 1.5em';
-                        }
-                    });
-                }
+                if (!attrMatch) return match;
+                
+                const cleanAlt = alt.replace(attrMatch[0], '').trim();
+                let styles = '';
+                
+                attrMatch[1].split(' ').forEach(attr => {
+                    const [key, value] = attr.split('=');
+                    if (key === 'width') styles += `width: ${value}; `;
+                    if (key === 'align') {
+                        styles += `float: ${value}; `;
+                        styles += `margin: ${value === 'left' ? '0.5em 1.5em 0.5em 0' : '0.5em 0 0.5em 1.5em'}; `;
+                    }
+                });
+                
+                return `<img${before}alt="${cleanAlt}"${after}${styles ? ` style="${styles}"` : ''}>`;
             });
-            return container.innerHTML;
         };
 
-        // --- EXECUTION PIPELINE ---
+        // --- EXECUTION PIPELINE (OPTIMIZED) ---
         applyCustomStyles(rawText);
         const pureMarkdown = convertToPureMarkdown(rawText);
         let finalHtml = converter.makeHtml(pureMarkdown);
         finalHtml = processAdmonitions(finalHtml);
         finalHtml = postprocessHtml(finalHtml);
         htmlOutput.innerHTML = finalHtml;
-        htmlOutput.querySelectorAll('pre code').forEach(block => hljs.highlightElement(block));
-    };
-
-    // --- HELPER FUNCTIONS (COMPLETE AND UNABRIDGED) ---
-    const copyHtml = async () => {
-        try {
-            // Map external CSS to hosted versions using full URLs - including localhost/development URLs
-            const hostedCssMap = {
-                'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Fira+Code&display=swap': 'https://yasakei.is-a.dev/Weby/libs/fonts.css',
-                'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css': 'https://yasakei.is-a.dev/Weby/libs/highlight.css',
-                'https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css': 'https://yasakei.is-a.dev/Weby/libs/codemirror.css',
-                'https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css': 'https://yasakei.is-a.dev/Weby/libs/codemirror-theme.css',
-                './style.css': 'https://yasakei.is-a.dev/Weby/libs/style.css',
-                'style.css': 'https://yasakei.is-a.dev/Weby/libs/style.css'
-            };
-            
-            // Create CSS link tags for hosted files
-            const cssLinks = [];
-            const linkElements = document.querySelectorAll('link[rel="stylesheet"]');
-            
-            linkElements.forEach(link => {
-                const href = link.getAttribute('href');
-                let hostedUrl = null;
-                
-                // Check direct mapping first
-                hostedUrl = hostedCssMap[link.href] || hostedCssMap[href];
-                
-                // Handle localhost and development server URLs
-                if (!hostedUrl && href) {
-                    if (href.includes('style.css') || href.endsWith('style.css')) {
-                        hostedUrl = 'https://yasakei.is-a.dev/Weby/libs/style.css';
-                    } else if (href.includes('fonts.googleapis.com')) {
-                        hostedUrl = 'https://yasakei.is-a.dev/Weby/libs/fonts.css';
-                    } else if (href.includes('highlight.js') || href.includes('atom-one-dark')) {
-                        hostedUrl = 'https://yasakei.is-a.dev/Weby/libs/highlight.css';
-                    } else if (href.includes('codemirror') && href.includes('material-darker')) {
-                        hostedUrl = 'https://yasakei.is-a.dev/Weby/libs/codemirror-theme.css';
-                    } else if (href.includes('codemirror') && !href.includes('theme')) {
-                        hostedUrl = 'https://yasakei.is-a.dev/Weby/libs/codemirror.css';
+        
+        // Optimized syntax highlighting - use requestAnimationFrame for better performance
+        requestAnimationFrame(() => {
+            const codeBlocks = htmlOutput.querySelectorAll('pre code');
+            for (const block of codeBlocks) {
+                if (!block.hasAttribute('data-highlighted')) {
+                    if (typeof hljs !== 'undefined') {
+                        hljs.highlightElement(block);
                     }
+                    block.setAttribute('data-highlighted', 'true');
                 }
-                
-                if (hostedUrl) {
-                    cssLinks.push(`    <link rel="stylesheet" href="${hostedUrl}">`);
-                } else {
-                    // Fallback to original URL only if it's not a localhost URL
-                    if (!href.includes('127.0.0.1') && !href.includes('localhost')) {
-                        cssLinks.push(`    <link rel="stylesheet" href="${link.href}">`);
-                    }
-                }
-            });
-            
-            // Ensure main style.css is included
-            if (!cssLinks.some(link => link.includes('style.css'))) {
-                cssLinks.push(`    <link rel="stylesheet" href="https://yasakei.is-a.dev/Weby/libs/style.css">`);
             }
             
-            // Get only essential custom styles (user @style blocks and preview background)
+            // Performance monitoring (development only)
+            const renderTime = performance.now() - renderStart;
+            if (renderTime > 50) { // Only log if render takes more than 50ms
+                console.log(`Render took ${renderTime.toFixed(2)}ms`);
+            }
+        });
+    };
+
+    // --- OPTIMIZED HELPER FUNCTIONS ---
+    const copyHtml = async () => {
+        try {
+            // Simplified CSS mapping for hosted versions
+            const cssLinks = [
+                'https://yasakei.is-a.dev/Weby/libs/fonts.css',
+                'https://yasakei.is-a.dev/Weby/libs/highlight.css',
+                'https://yasakei.is-a.dev/Weby/libs/codemirror.css',
+                'https://yasakei.is-a.dev/Weby/libs/codemirror-theme.css',
+                'https://yasakei.is-a.dev/Weby/libs/style.css'
+            ].map(url => `    <link rel="stylesheet" href="${url}">`);
+            
+            // Get essential custom styles efficiently
             const customStyles = customStyleTag.innerHTML;
-            const previewStyles = htmlOutput.style.backgroundColor ? 
-                `#html-output { background-color: ${htmlOutput.style.backgroundColor}; }` : '';
+            const previewBg = htmlOutput.style.backgroundColor;
+            const inlineStyles = [
+                customStyles,
+                previewBg ? `#html-output { background-color: ${previewBg}; }` : ''
+            ].filter(Boolean).join('\n');
             
-            const inlineStyles = [customStyles, previewStyles].filter(s => s.trim()).join('\n');
-            
-            // Create complete HTML document with hosted CSS references and JavaScript for syntax highlighting
+            // Create optimized HTML document
             const completeHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -234,11 +312,8 @@ ${inlineStyles}
 ${htmlOutput.innerHTML}
     </div>
     <script>
-        // Initialize syntax highlighting
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('pre code').forEach((block) => {
-                hljs.highlightElement(block);
-            });
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('pre code').forEach(hljs.highlightElement);
         });
     </script>
 </body>
@@ -246,249 +321,187 @@ ${htmlOutput.innerHTML}
 
             await navigator.clipboard.writeText(completeHtml);
             copyHtmlBtn.textContent = 'Copied!';
-            setTimeout(() => {
-                copyHtmlBtn.textContent = 'Copy HTML';
-            }, 2000);
+            setTimeout(() => copyHtmlBtn.textContent = 'Copy HTML', 2000);
         } catch (err) {
             console.error('Failed to copy HTML: ', err);
             alert('Could not copy HTML with styles.');
         }
     };
 
+    // --- PDF STYLES (EXTRACTED FOR PERFORMANCE) ---
+    const PDF_STYLES = `
+        body {
+            font-family: 'Inter', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #212529;
+            margin: 0;
+            padding: 0;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 0;
+            margin-bottom: 0.5em;
+            font-weight: 700;
+        }
+        h1 { font-size: 24pt; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+        h2 { font-size: 20pt; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+        h3 { font-size: 16pt; }
+        h4 { font-size: 14pt; }
+        p {
+            margin-top: 0;
+            margin-bottom: 1em;
+            text-align: justify;
+        }
+        blockquote {
+            margin: 0 0 1em 0;
+            padding: 0.5em 1em;
+            border-left: 5px solid #dee2e6;
+            color: #6c757d;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+            font-size: 10pt;
+        }
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 0.5em;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        tr:nth-of-type(even) {
+            background-color: #fcfcfd;
+        }
+        pre {
+            background-color: #282c34;
+            padding: 1em;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+            font-size: 8pt;
+            line-height: 1.4;
+            margin: 1em 0;
+            color: #abb2bf;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+        }
+        code {
+            font-family: 'Fira Code', monospace;
+        }
+        :not(pre) > code {
+            background-color: #e9ecef;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-size: 9pt;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 1em 0;
+        }
+        ul, ol {
+            margin-top: 0;
+            margin-bottom: 1em;
+            padding-left: 2em;
+        }
+        li {
+            margin-bottom: 0.25em;
+        }
+        .admonition {
+            padding: 1em;
+            margin: 1em 0;
+            border-left: 5px solid #0969da;
+            border-radius: 4px;
+            background-color: #f6f8fa;
+        }
+        .admonition-note { border-color: #0d6efd; background-color: #cfe2ff; }
+        .admonition-tip { border-color: #198754; background-color: #d1e7dd; }
+        .admonition-important { border-color: #6f42c1; background-color: #e2d9f3; }
+        .admonition-warning { border-color: #ffc107; background-color: #fff3cd; }
+        .admonition-caution { border-color: #dc3545; background-color: #f8d7da; }
+        .admonition p:first-child {
+            font-weight: 700;
+            margin-top: 0;
+        }
+        .admonition p:last-child {
+            margin-bottom: 0;
+        }
+        h1, h2, h3, h4 {
+            page-break-after: avoid;
+        }
+        pre, table {
+            page-break-inside: avoid;
+        }
+    `;
+
     const downloadPDF = async () => {
+        // Check if PDF functionality is available
+        if (!jsPDF) {
+            alert('PDF generation is not available. Please ensure jsPDF library is loaded.');
+            return;
+        }
+        
         downloadPdfBtn.textContent = 'Generating...';
         downloadPdfBtn.disabled = true;
 
         try {
-            // Create a more appropriate container for PDF generation
+            // Optimized PDF container creation
             const pdfContainer = document.createElement('div');
-            pdfContainer.style.width = '210mm'; // A4 width
-            pdfContainer.style.padding = '20mm'; // Standard margins
-            pdfContainer.style.boxSizing = 'border-box';
-            pdfContainer.style.backgroundColor = 'white';
+            pdfContainer.style.cssText = 'width: 210mm; padding: 20mm; box-sizing: border-box; background-color: white;';
+            tempElements.add(pdfContainer); // Track for cleanup
             
-            // Clone and modify the HTML content for PDF
-            const htmlContent = document.getElementById('html-output').cloneNode(true);
-            htmlContent.style.padding = '0'; // Remove extra padding for PDF
-            htmlContent.style.backgroundColor = 'white';
+            // Clone content efficiently
+            const htmlContent = htmlOutput.cloneNode(true);
+            htmlContent.style.cssText = 'padding: 0; background-color: white;';
             
-            // Fix code blocks for PDF
-            htmlContent.querySelectorAll('pre code').forEach(block => {
-                // Ensure code blocks don't overflow
-                block.style.whiteSpace = 'pre-wrap';
-                block.style.wordWrap = 'break-word';
-                block.style.overflowWrap = 'break-word';
-            });
+            // Optimize code blocks for PDF in one pass
+            const codeBlocks = htmlContent.querySelectorAll('pre code');
+            for (const block of codeBlocks) {
+                block.style.cssText = 'white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;';
+            }
             
-            // Create a style element with essential CSS for PDF
+            // Create optimized style element
             const style = document.createElement('style');
-            style.textContent = `
-                body {
-                    font-family: 'Inter', sans-serif;
-                    font-size: 11pt;
-                    line-height: 1.6;
-                    color: #212529;
-                    margin: 0;
-                    padding: 0;
-                }
-                
-                h1, h2, h3, h4, h5, h6 {
-                    margin-top: 0;
-                    margin-bottom: 0.5em;
-                    font-weight: 700;
-                }
-                
-                h1 {
-                    font-size: 24pt;
-                    border-bottom: 1px solid #eee;
-                    padding-bottom: 0.3em;
-                }
-                
-                h2 {
-                    font-size: 20pt;
-                    border-bottom: 1px solid #eee;
-                    padding-bottom: 0.3em;
-                }
-                
-                h3 {
-                    font-size: 16pt;
-                }
-                
-                h4 {
-                    font-size: 14pt;
-                }
-                
-                p {
-                    margin-top: 0;
-                    margin-bottom: 1em;
-                    text-align: justify;
-                }
-                
-                blockquote {
-                    margin: 0 0 1em 0;
-                    padding: 0.5em 1em;
-                    border-left: 5px solid #dee2e6;
-                    color: #6c757d;
-                }
-                
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 1em 0;
-                    font-size: 10pt;
-                }
-                
-                th, td {
-                    border: 1px solid #dee2e6;
-                    padding: 0.5em;
-                    text-align: left;
-                }
-                
-                th {
-                    background-color: #f8f9fa;
-                    font-weight: 600;
-                }
-                
-                tr:nth-of-type(even) {
-                    background-color: #fcfcfd;
-                }
-                
-                pre {
-                    background-color: #282c34;
-                    padding: 1em;
-                    border-radius: 4px;
-                    font-family: 'Fira Code', monospace;
-                    font-size: 8pt;
-                    line-height: 1.4;
-                    margin: 1em 0;
-                    color: #abb2bf;
-                    white-space: pre-wrap;
-                    word-wrap: break-word;
-                    overflow-wrap: break-word;
-                    max-width: 100%;
-                }
-                
-                code {
-                    font-family: 'Fira Code', monospace;
-                }
-                
-                :not(pre) > code {
-                    background-color: #e9ecef;
-                    padding: 0.2em 0.4em;
-                    border-radius: 3px;
-                    font-size: 9pt;
-                }
-                
-                img {
-                    max-width: 100%;
-                    height: auto;
-                    display: block;
-                    margin: 1em 0;
-                }
-                
-                ul, ol {
-                    margin-top: 0;
-                    margin-bottom: 1em;
-                    padding-left: 2em;
-                }
-                
-                li {
-                    margin-bottom: 0.25em;
-                }
-                
-                /* Admonitions */
-                .admonition {
-                    padding: 1em;
-                    margin: 1em 0;
-                    border-left: 5px solid #0969da;
-                    border-radius: 4px;
-                    background-color: #f6f8fa;
-                }
-                
-                .admonition-note {
-                    border-color: #0d6efd;
-                    background-color: #cfe2ff;
-                }
-                
-                .admonition-tip {
-                    border-color: #198754;
-                    background-color: #d1e7dd;
-                }
-                
-                .admonition-important {
-                    border-color: #6f42c1;
-                    background-color: #e2d9f3;
-                }
-                
-                .admonition-warning {
-                    border-color: #ffc107;
-                    background-color: #fff3cd;
-                }
-                
-                .admonition-caution {
-                    border-color: #dc3545;
-                    background-color: #f8d7da;
-                }
-                
-                .admonition p:first-child {
-                    font-weight: 700;
-                    margin-top: 0;
-                }
-                
-                .admonition p:last-child {
-                    margin-bottom: 0;
-                }
-                
-                /* Ensure proper page breaks */
-                h1, h2, h3, h4 {
-                    page-break-after: avoid;
-                }
-                
-                pre, table {
-                    page-break-inside: avoid;
-                }
-            `;
+            style.textContent = PDF_STYLES;
             
             pdfContainer.appendChild(style);
             pdfContainer.appendChild(htmlContent);
             
-            // Create a new jsPDF instance with better settings for text
+            // Temporarily append to body for rendering
+            document.body.appendChild(pdfContainer);
+            
+            // Optimized jsPDF configuration
             const pdf = new jsPDF({
                 orientation: 'portrait',
                 unit: 'mm',
                 format: 'a4'
             });
             
-            // Add the HTML content to the PDF
+            // Streamlined PDF generation
             await pdf.html(pdfContainer, {
-                callback: function (pdf) {
+                callback: (pdf) => {
                     pdf.save('weby-document.pdf');
+                    // Cleanup immediately after PDF generation
+                    cleanupTempElements();
                 },
-                margin: [20, 15, 20, 15], // Top, Right, Bottom, Left margins in mm
+                margin: [20, 15, 20, 15],
                 autoPaging: 'text',
-                width: 170, // 210mm (A4 width) - 15mm (left margin) - 15mm (right margin)
-                windowWidth: 794, // Approximate pixel width of A4 at 96 DPI
+                width: 170,
+                windowWidth: 794,
                 x: 0,
-                y: 0,
-                fontFaces: [
-                    {
-                        family: 'Inter',
-                        src: [
-                            { url: 'https://fonts.gstatic.com/s/inter/v12/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa2JL7W0Q5n-wU.woff2', format: 'woff2' }
-                        ]
-                    },
-                    {
-                        family: 'Fira Code',
-                        src: [
-                            { url: 'https://fonts.gstatic.com/s/firacode/v21/uU9eCBsR6Z2vfE9aq3bL0fxyUs4tcw4W_D1sJVD7Ng.woff2', format: 'woff2' }
-                        ]
-                    }
-                ]
+                y: 0
             });
 
         } catch (error) {
             console.error('PDF Generation failed:', error);
             alert('An error occurred during PDF generation. Check the console for more details.');
+            cleanupTempElements(); // Cleanup on error
         } finally {
             downloadPdfBtn.textContent = 'Download PDF';
             downloadPdfBtn.disabled = false;
@@ -496,12 +509,37 @@ ${htmlOutput.innerHTML}
     };
     
     // --- EVENT LISTENERS ---
-    editor.on('change', renderContent);
+    editor.on('change', debouncedRender);
     downloadPdfBtn.addEventListener('click', downloadPDF);
     copyHtmlBtn.addEventListener('click', copyHtml);
 
-    // --- INITIAL TEXT ---
-    const initialText = `# The Great Peanut Butter Panic\n\nIt was a Tuesday. Sir Reginald, a hamster of distinguished taste, discovered his personal stash of peanut butter was alarmingly low.\n\n> [!IMPORTANT]\n> A hamster's peanut butter supply is critical for global stability. This cannot be overstated.\n\nHe immediately assembled his team.\n\n![Sir Reginald's Team{align=right width=50%}](https://yas.ct.ws/cdn/uploads/687a414a6c532.png)\n\nThis text is wrapping around the team meeting. As you can see, they are very serious. Sir Reginald is on the right, looking concerned.\n\n## The Plan\n\nThe plan was simple: infiltrate the human's kitchen and secure more peanut butter.\n\n> [!TIP]\n> The best time to raid the kitchen is during the human's \"work from home\" video calls. They are distracted by talking to a glowing rectangle.\n\nThe mission parameters were as follows:\n\n<table>\n  <thead>\n    <tr>\n      <th>Agent</th>\n      <th>Codename</th>\n      <th>Task</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>Bartholomew</td>\n      <td>The Shadow</td>\n      <td>Distraction</td>\n    </tr>\n    <tr>\n      <td>Penelope</td>\n      <td>Tiny Paws</td>\n      <td>Acquisition</td>\n    </tr>\n     <tr>\n      <td>Sir Reginald</td>\n      <td>The Brains</td>\n      <td>Supervision</td>\n    </tr>\n  </tbody>\n</table>\n\n## The Heist\n\nThe operation was a success. Bartholomew created a diversion by running on his wheel at an unprecedented speed, generating a miniature sonic boom.\n\n> [!WARNING]\n> Do not attempt to break the sound barrier in a standard hamster wheel. It requires special equipment.\n\nPenelope, using her expert climbing skills, secured the jar. The code for this maneuver is highly classified:\n\n\`\`\`javascript\nfunction securePeanutButter(agent) {\n  if (agent.name === \"Penelope\") {\n    return \"SUCCESS\";\n  } else {\n    return \"FAILURE\";\n  }\n}\n\`\`\`\n\n> [!CAUTION]\n> The peanut butter jar is often guarded by a lid. Lid removal is a complex, two-hamster operation.\n\nWith the mission accomplished, Sir Reginald retired to his study to enjoy the spoils.\n\n> [!NOTE]\n> The story you have just read is mostly true. Some details may have been exaggerated for dramatic effect. Check out more of Sir Reginald's adventures [here](https://www.google.com/search?q=funny+hamster+stories).\n\n`;
+    // --- INITIAL TEXT (OPTIMIZED FOR PERFORMANCE) ---
+    const initialText = `# Welcome to Weby
+
+A fast, lightweight Markdown editor with real-time preview.
+
+## Features
+
+- **Live Preview**: See your rendered Markdown instantly
+- **Fast Rendering**: Optimized for performance
+- **PDF Export**: Download your documents as PDF
+- **GitHub Flavored Markdown**: Tables, code blocks, and more
+
+## Quick Test
+
+Here's some code:
+
+\`\`\`javascript
+function hello() {
+    console.log("Hello, World!");
+}
+\`\`\`
+
+> [!NOTE]
+> This is an optimized version with improved performance!
+
+Start editing to see the real-time preview in action.
+`;
     editor.setValue(initialText);
 
     // --- INITIAL RENDER ---

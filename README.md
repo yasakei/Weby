@@ -16,6 +16,7 @@ Weby is a lightweight, high-performance, in-browser Markdown editor that provide
 - **⚡ High Performance**: Optimized rendering pipeline with debouncing and smart change detection
 - **📝 Live Preview**: See your rendered Markdown instantly as you type
 - **📄 Fast PDF Export**: Optimized PDF generation with memory management
+- **💾 Save & Import .wmd Files**: Save your work as .wmd files and import them later for editing
 - **🎨 GitHub Flavored Markdown**: Standard Markdown syntax, including tables, is supported
 - **🌈 Code Syntax Highlighting**: Code blocks are automatically highlighted using `highlight.js`
 - **🎯 Custom Styling**: Use an `@style` block at the top of your document to customize the preview pane's background color and the border-radius of code blocks and images
@@ -29,6 +30,13 @@ Weby is a lightweight, high-performance, in-browser Markdown editor that provide
 1.  Open `index.html` in your web browser.
 2.  Type your Markdown in the left editor pane.
 3.  The right preview pane will update in real-time.
+4.  Use the "Save as .wmd" button to download your work for later editing.
+5.  Use the "Import .wmd" button to load previously saved .wmd files.
+
+### Save & Import Files
+
+- **Save as .wmd**: Click the "Save as .wmd" button to download your current markdown content as a `.wmd` file. This allows you to save your work locally and continue editing later.
+- **Import .wmd**: Click the "Import .wmd" button to browse and select a previously saved `.wmd` file. The content will be loaded into the editor and the preview will update automatically.
 
 ### Special Syntax
 

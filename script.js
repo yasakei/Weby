@@ -31,6 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const htmlOutput = document.getElementById('html-output');
     const downloadPdfBtn = document.getElementById('download-pdf-btn');
     const copyHtmlBtn = document.getElementById('copy-html-btn');
+    const saveWmdBtn = document.getElementById('save-wmd-btn');
+    const importWmdBtn = document.getElementById('import-wmd-btn');
+    const importWmdInput = document.getElementById('import-wmd-input');
     const customStyleTag = document.getElementById('custom-user-styles');
 
     // --- DEFINE CUSTOM MARKDOWN MODE FOR CODEMIRROR (WITH FALLBACK) ---
@@ -328,6 +331,60 @@ ${htmlOutput.innerHTML}
         }
     };
 
+    // --- SAVE AS .WMD FILE FUNCTION ---
+    const saveAsWmd = () => {
+        try {
+            const content = editor.getValue();
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'document.wmd';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            // Temporary feedback
+            saveWmdBtn.textContent = 'Saved!';
+            setTimeout(() => saveWmdBtn.textContent = 'Save as .wmd', 2000);
+        } catch (err) {
+            console.error('Failed to save .wmd file: ', err);
+            alert('Could not save .wmd file.');
+        }
+    };
+
+    // --- IMPORT .WMD FILE FUNCTION ---
+    const importWmd = () => {
+        importWmdInput.click();
+    };
+
+    const handleFileImport = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const content = e.target.result;
+                editor.setValue(content);
+                renderContent(); // Trigger re-render after import
+                
+                // Temporary feedback
+                importWmdBtn.textContent = 'Imported!';
+                setTimeout(() => importWmdBtn.textContent = 'Import .wmd', 2000);
+            } catch (err) {
+                console.error('Failed to import .wmd file: ', err);
+                alert('Could not import .wmd file.');
+            }
+        };
+        reader.readAsText(file);
+        
+        // Reset file input
+        event.target.value = '';
+    };
+
     // --- PDF STYLES (EXTRACTED FOR PERFORMANCE) ---
     const PDF_STYLES = `
         body {
@@ -512,6 +569,9 @@ ${htmlOutput.innerHTML}
     editor.on('change', debouncedRender);
     downloadPdfBtn.addEventListener('click', downloadPDF);
     copyHtmlBtn.addEventListener('click', copyHtml);
+    saveWmdBtn.addEventListener('click', saveAsWmd);
+    importWmdBtn.addEventListener('click', importWmd);
+    importWmdInput.addEventListener('change', handleFileImport);
 
     // --- INITIAL TEXT (OPTIMIZED FOR PERFORMANCE) ---
     const initialText = `# Welcome to Weby

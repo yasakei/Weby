@@ -213,17 +213,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return html.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/g, (match, content) => {
                 const firstPMatch = content.match(/<p[^>]*>\[!(\w+)\]([\s\S]*?)<\/p>/);
                 
-                if (firstPMatch && admonitionTypes.has(firstPMatch[1].toUpperCase())) {
+                if (firstPMatch && admonitionTypes.has(firstPMatch[1].toUpperCase())){
                     const type = firstPMatch[1].toUpperCase();
                     const title = type.charAt(0) + type.slice(1).toLowerCase();
-                    const remainingContent = firstPMatch[2] + content.substring(firstPMatch[0].length);
-                    
+                    // firstPMatch[2] captures all text after the admonition marker, substring is not needed
+                    const remainingContent = firstPMatch[2]
                     return `<div class="admonition admonition-${title.toLowerCase()}">
                         <p><strong>${title}</strong></p>
                         ${remainingContent ? `<p>${remainingContent}</p>` : ''}
                     </div>`;
                 }
-                return match;
+                return match
             });
         };
 
